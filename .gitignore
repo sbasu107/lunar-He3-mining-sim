@@ -2,6 +2,12 @@
 agents.md
 DESIGN.md
 
+# Simulation reports
+results/*
+!results/.gitkeep
+reports/*
+!reports/.gitkeep
+
 # Python
 __pycache__/
 *.py[cod]
