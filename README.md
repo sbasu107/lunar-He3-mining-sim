@@ -62,7 +62,7 @@ I solved this by rolling each truck's unload duration **when it arrives**, not w
 2. starts unloading at `max(now, available_at)`,
 3. pushes that station's `available_at` forward by its unload time.
 
-A free station always has the smallest `available_at`, which covers the "first available" rule. Once a truck is assigned, its events are scheduled at that station, which covers the "stays in its queue" rule. No queue data structure is needed.
+A free station always has the smallest `available_at`, which covers the "first available" rule. Once a truck is assigned, its events are scheduled at that station, which covers the "stays in its queue" rule. No queue data structure is needed. The [`simulation` README](simulation/README.md) walks through each event handler step by step.
 
 ## Architecture
 
@@ -158,6 +158,8 @@ Each class has one job:
 - **`Reporter`** reads a finished engine and derives the metrics. Keeping it separate means the engine knows nothing about formatting, and a new output format would be a new method, not an engine change.
 - **`main.py`** only parses arguments and wires the pieces together.
 
+Module-level details (constants, event handlers, metric formulas) are in the [`simulation` README](simulation/README.md).
+
 ### Truck lifecycle
 
 Every truck repeats this cycle until the clock reaches the configured duration:
@@ -189,13 +191,15 @@ Truck utilization counts mining, traveling, and unloading as productive time and
 
 - **Reproducible.** The engine uses its own `random.Random(seed)` instead of the global RNG, so a given `--seed` always produces the same report.
 - **Single source of truth for constants.** Every timing value lives in `simulation/config.py`, and all internal time is in minutes. Conversion to hours happens only in reporting.
-- **Tested in CI.** Unit tests use `unittest` and run on GitHub Actions for every push and pull request to `main`:
+- **Tested in CI.** 77 `unittest` tests run on GitHub Actions for every push and pull request to `main`. They combine hand-calculated scenarios (with a stub random generator) with rules checked across many seeds. The [tests README](tests/README.md) explains the strategy.
 
   ```bash
   python3 -m unittest discover -s tests -v
   ```
 
-- **Incremental delivery.** I built the project in stages (config and models, engine, reporting, CLI, tests, final report). Each stage went through its own branch and pull request.
+- **Bugs tracked in the open.** The tests caught three bugs in the engine and config ([#5](https://github.com/sbasu107/lunar-He3-mining-sim/issues/5), [#6](https://github.com/sbasu107/lunar-He3-mining-sim/issues/6), [#7](https://github.com/sbasu107/lunar-He3-mining-sim/issues/7)). Each has a GitHub issue and an expected-failure test, so CI flags it as soon as it's fixed.
+
+- **Incremental delivery.** I built the project in stages (config and models, engine, reporting, CLI and tests, documentation, final report). Each stage went through its own branch and pull request.
 
 ## Project Structure
 
@@ -203,12 +207,17 @@ Truck utilization counts mining, traveling, and unloading as productive time and
 .
 ├── main.py                 # CLI entry point
 ├── simulation/
+│   ├── README.md           # Module-level design notes
 │   ├── config.py           # Constants + SimConfig
 │   ├── models.py           # Event, EventType, MiningTruck, UnloadStation
 │   ├── engine.py           # SimulationEngine (discrete-event loop)
 │   └── reporting.py        # Reporter (statistics + Markdown output)
 ├── tests/
-│   └── test_simulation.py  # Unit tests
+│   ├── README.md           # Testing strategy + expected failures
+│   ├── test_engine.py
+│   ├── test_reporting.py
+│   ├── test_cli.py
+│   └── test_models.py
 ├── results/
 │   └── summary_report.md   # Required report (n=10, m=3, 72h)
 ├── assets/
