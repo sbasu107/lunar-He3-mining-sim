@@ -2,15 +2,16 @@
 
 import heapq
 import random
+from typing import Callable, ClassVar
 
 from .config import (
-    SimConfig,
     HOURS_TO_MINUTES,
-    TRAVEL_TIME_MINUTES,
-    MIN_MINING_HOURS,
     MAX_MINING_HOURS,
-    MIN_UNLOAD_MINUTES,
     MAX_UNLOAD_MINUTES,
+    MIN_MINING_HOURS,
+    MIN_UNLOAD_MINUTES,
+    TRAVEL_TIME_MINUTES,
+    SimConfig,
 )
 from .models import Event, EventType, MiningTruck, TruckState, UnloadStation
 
@@ -128,6 +129,7 @@ class SimulationEngine:
         for truck in self.trucks:
             elapsed = self._credit_elapsed(truck)
             if truck._state is TruckState.UNLOADING:
+                assert truck._station_id is not None
                 self.stations[truck._station_id].time_busy += elapsed
 
     def _dispatch(self, event: Event) -> None:
@@ -190,6 +192,7 @@ class SimulationEngine:
     def _on_finish_unload(self, event: Event) -> None:
         """Truck finishes unloading → record stats, head back to mine."""
         truck = self.trucks[event.truck_id]
+        assert event.station_id is not None
         station = self.stations[event.station_id]
 
         unload_time = self._transition(truck, TruckState.TRAVELING)
@@ -221,7 +224,7 @@ class SimulationEngine:
         ))
 
     # Handler dispatch table (avoids if/elif chains)
-    _HANDLERS = {
+    _HANDLERS: ClassVar[dict[EventType, Callable[["SimulationEngine", Event], None]]] = {
         EventType.MINING_COMPLETE: _on_mining_complete,
         EventType.ARRIVE_STATION: _on_arrive_station,
         EventType.START_UNLOAD: _on_start_unload,
