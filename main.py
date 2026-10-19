@@ -1,0 +1,96 @@
+"""Command-line entry point for the lunar He-3 mining simulation.
+
+Usage:
+    python3 main.py [n] [m] [--hours H] [--seed S] [--output PATH]
+
+Examples:
+    python3 main.py                      # 10 trucks, 3 stations, 72 hours
+    python3 main.py 20 5                 # 20 trucks, 5 stations
+    python3 main.py 10 3 --seed 42 --output results/summary_report.md
+"""
+
+import argparse
+import sys
+import time
+
+from simulation import Reporter, SimConfig, SimulationEngine
+
+DEFAULT_TRUCKS = 10
+DEFAULT_STATIONS = 3
+DEFAULT_HOURS = 72
+
+
+def positive_int(value: str) -> int:
+    """argparse type that accepts only integers >= 1."""
+    try:
+        number = int(value)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"'{value}' is not an integer")
+    if number < 1:
+        raise argparse.ArgumentTypeError(f"must be at least 1 (got {number})")
+    return number
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Simulate a lunar Helium-3 mining operation with n trucks "
+                    "and m unload stations.",
+    )
+    parser.add_argument(
+        "trucks", metavar="n", type=positive_int, nargs="?",
+        default=DEFAULT_TRUCKS,
+        help=f"number of mining trucks (default: {DEFAULT_TRUCKS})",
+    )
+    parser.add_argument(
+        "stations", metavar="m", type=positive_int, nargs="?",
+        default=DEFAULT_STATIONS,
+        help=f"number of unload stations (default: {DEFAULT_STATIONS})",
+    )
+    parser.add_argument(
+        "--hours", type=positive_int, default=DEFAULT_HOURS,
+        help=f"simulated duration in hours (default: {DEFAULT_HOURS})",
+    )
+    parser.add_argument(
+        "--seed", type=int, default=None,
+        help="random seed for reproducible runs (default: random)",
+    )
+    parser.add_argument(
+        "--output", metavar="PATH", default=None,
+        help="also save the Markdown report to PATH "
+             "(e.g. results/summary_report.md)",
+    )
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+
+    config = SimConfig(
+        num_trucks=args.trucks,
+        num_stations=args.stations,
+        duration_hours=args.hours,
+        random_seed=args.seed,
+    )
+
+    start = time.perf_counter()
+    engine = SimulationEngine(config)
+    engine.run()
+    elapsed = time.perf_counter() - start
+
+    reporter = Reporter(engine)
+    reporter.print_report()
+
+    if args.output:
+        reporter.save_markdown(args.output)
+        print(f"Report saved to {args.output}", file=sys.stderr)
+
+    print(
+        f"Simulated {config.duration_hours} h in {elapsed * 1000:.1f} ms "
+        "of real world time.",
+        file=sys.stderr,
+    )
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
