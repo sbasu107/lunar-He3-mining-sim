@@ -10,7 +10,7 @@ import copy
 import random
 import unittest
 
-from simulation import SimConfig, SimulationEngine
+from simulation import SimConfig, SimulationEngine, TruckState
 from simulation.config import (
     MAX_MINING_HOURS,
     MAX_UNLOAD_MINUTES,
@@ -178,17 +178,15 @@ class TestQueueing(unittest.TestCase):
         self.assertEqual(sorted(t.time_waiting for t in engine.trucks), [0, 30, 60, 90])
 
 
-class TestKnownIssues(unittest.TestCase):
-    """Behaviour the engine gets wrong today. Remove the decorator once fixed."""
+class TestEndOfRunAccounting(unittest.TestCase):
+    """Activities still in progress when the run ends are credited up to the end."""
 
-    @unittest.expectedFailure
     def test_mining_in_progress_at_end_is_counted(self):
         # Truck is mining from t = 150 when the run ends at 180.
         engine = stub_engine(1, 1, hours=3)
         engine.run()
         self.assertEqual(engine.trucks[0].time_mining, 90)
 
-    @unittest.expectedFailure
     def test_unload_in_progress_at_end_counts_toward_station_busy_time(self):
         # Unload runs 90-150 but the simulation ends at 120.
         engine = stub_engine(1, 1, hours=2, unload_minutes=60)
@@ -196,14 +194,12 @@ class TestKnownIssues(unittest.TestCase):
         self.assertEqual(engine.stations[0].time_busy, 30)
         self.assertEqual(engine.trucks[0].time_unloading, 30)
 
-    @unittest.expectedFailure
     def test_waiting_in_progress_at_end_is_counted(self):
         # Second truck queues from t = 90; the run ends at 120.
         engine = stub_engine(2, 1, hours=2, unload_minutes=60)
         engine.run()
         self.assertEqual(sum(t.time_waiting for t in engine.trucks), 30)
 
-    @unittest.expectedFailure
     def test_travel_in_progress_at_end_is_counted(self):
         # 0-60 mine, 60-90 travel, 90-135 unload, 135-165 travel,
         # 165-225 mine, 225-255 travel: the run ends at 240, mid-travel.
@@ -211,27 +207,36 @@ class TestKnownIssues(unittest.TestCase):
         engine.run()
         self.assertEqual(engine.trucks[0].time_traveling, 75)
 
-    @unittest.expectedFailure
     def test_truck_state_times_sum_to_duration(self):
         for key, engine in seeded_runs():
-            for truck in engine.trucks:
-                self.assertAlmostEqual(
-                    total_truck_time(truck), engine.config.duration_minutes,
-                    msg=f"config={key} truck={truck.id}",
-                )
+            with self.subTest(config=key):
+                for truck in engine.trucks:
+                    self.assertAlmostEqual(
+                        total_truck_time(truck), engine.config.duration_minutes,
+                        msg=f"truck={truck.id}",
+                    )
 
-    @unittest.expectedFailure
-    def test_running_twice_does_not_corrupt_results(self):
-        # run() re-schedules the initial events without resetting the clock or
-        # entities, so a second call drives mining time negative.
+    def test_clock_ends_at_duration(self):
+        engine = stub_engine(1, 1, hours=3)
+        engine.run()
+        self.assertEqual(engine.clock, 180)
+
+
+class TestRunOnce(unittest.TestCase):
+    def test_second_run_raises(self):
         engine = SimulationEngine(SimConfig(random_seed=1))
         engine.run()
-        first = copy.deepcopy(engine.trucks)
-        try:
+        with self.assertRaises(RuntimeError):
             engine.run()
-        except RuntimeError:
-            pass
-        self.assertEqual(engine.trucks, first)
+
+    def test_second_run_leaves_results_untouched(self):
+        engine = SimulationEngine(SimConfig(random_seed=1))
+        engine.run()
+        trucks, stations = copy.deepcopy(engine.trucks), copy.deepcopy(engine.stations)
+        with self.assertRaises(RuntimeError):
+            engine.run()
+        self.assertEqual(engine.trucks, trucks)
+        self.assertEqual(engine.stations, stations)
 
 
 # ---------------------------------------------------------------------------
@@ -288,8 +293,10 @@ class TestInvariants(unittest.TestCase):
             with self.subTest(config=key):
                 for truck in engine.trucks:
                     loads = truck.loads_delivered
+                    # A truck cut off mid-unload has one partial unload on top.
+                    partial = MAX_UNLOAD_MINUTES if truck._state is TruckState.UNLOADING else 0
                     self.assertGreaterEqual(truck.time_unloading, loads * MIN_UNLOAD_MINUTES)
-                    self.assertLessEqual(truck.time_unloading, loads * MAX_UNLOAD_MINUTES)
+                    self.assertLessEqual(truck.time_unloading, loads * MAX_UNLOAD_MINUTES + partial)
 
     def test_loads_bounded_by_fastest_possible_cycle(self):
         # Fastest first delivery: 60 + 30 + 30 = 120 min, then every 150 min.
@@ -314,12 +321,14 @@ class TestInvariants(unittest.TestCase):
             with self.subTest(config=key):
                 self.assertLessEqual(engine.clock, engine.config.duration_minutes)
 
-    def test_mining_time_is_whole_hours(self):
-        # Mining durations have 1-hour resolution.
+    def test_completed_mining_time_is_whole_hours(self):
+        # Mining durations have 1-hour resolution; only a session cut off by
+        # the end of the run can be a partial hour.
         for key, engine in seeded_runs():
             with self.subTest(config=key):
                 for truck in engine.trucks:
-                    self.assertEqual(truck.time_mining % 60, 0)
+                    if truck._state is not TruckState.MINING:
+                        self.assertEqual(truck.time_mining % 60, 0)
 
     def test_random_draws_stay_within_spec(self):
         engine = SimulationEngine(SimConfig(num_trucks=20, num_stations=3, random_seed=7))

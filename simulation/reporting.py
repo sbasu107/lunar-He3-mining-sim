@@ -38,8 +38,6 @@ class Reporter:
     @property
     def system_throughput_loads_per_hour(self) -> float:
         """System-wide throughput measured in loads delivered per hour."""
-        if self.config.duration_hours <= 0:
-            return 0.0
         return self.total_loads_delivered / self.config.duration_hours
 
     def truck_utilization(self, truck_id: int) -> float:
@@ -49,8 +47,6 @@ class Reporter:
         is treated as non-productive idle queue delay.
         """
         truck = self.engine.trucks[truck_id]
-        if self.config.duration_minutes <= 0:
-            return 0.0
         active_minutes = (
             truck.time_mining + truck.time_traveling + truck.time_unloading
         )
@@ -59,8 +55,6 @@ class Reporter:
     @property
     def average_truck_utilization(self) -> float:
         """Average active utilization across all trucks."""
-        if not self.engine.trucks:
-            return 0.0
         total_util = sum(
             self.truck_utilization(t.id) for t in self.engine.trucks
         )
@@ -69,15 +63,11 @@ class Reporter:
     def station_utilization(self, station_id: int) -> float:
         """Calculate utilization percentage for a single unload station."""
         station = self.engine.stations[station_id]
-        if self.config.duration_minutes <= 0:
-            return 0.0
         return (station.time_busy / self.config.duration_minutes) * 100.0
 
     @property
     def average_station_utilization(self) -> float:
         """Average utilization across all unload stations."""
-        if not self.engine.stations:
-            return 0.0
         total_util = sum(
             self.station_utilization(s.id) for s in self.engine.stations
         )

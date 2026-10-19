@@ -73,7 +73,7 @@ The engine is the only class that changes state. Trucks and stations are plain d
 python3 -m unittest discover -s tests -v
 ```
 
-77 tests run on GitHub Actions for every push and pull request to `main`, using only `unittest`. Most engine tests replace the random generator with a stub that returns fixed durations, so results can be checked against hand calculations. Others check rules that must hold for any seed, such as "loads delivered equals trucks served". A few tests are marked as expected failures for known bugs, each tracked in a GitHub issue. See the [tests README](tests/README.md) for the full strategy.
+80 tests run on GitHub Actions for every push and pull request to `main`, using only `unittest`. Most engine tests replace the random generator with a stub that returns fixed durations, so results can be checked against hand calculations. Others check rules that must hold for any seed, such as "every truck's time adds up to the full duration". See the [tests README](tests/README.md) for the full strategy.
 
 The engine draws every random number from its own `random.Random(seed)`, so the same `--seed` always produces the same report.
 

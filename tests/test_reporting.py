@@ -52,22 +52,6 @@ class TestMetrics(unittest.TestCase):
         self.assertAlmostEqual(self.reporter.average_station_utilization, 15.0)
 
 
-class TestMetricGuards(unittest.TestCase):
-    def test_zero_duration_does_not_divide_by_zero(self):
-        engine = SimulationEngine(SimConfig(num_trucks=1, num_stations=1, duration_hours=0))
-        reporter = Reporter(engine)
-        self.assertEqual(reporter.system_throughput_loads_per_hour, 0.0)
-        self.assertEqual(reporter.truck_utilization(0), 0.0)
-        self.assertEqual(reporter.station_utilization(0), 0.0)
-
-    def test_no_entities_gives_zero_averages(self):
-        engine = SimulationEngine(SimConfig(num_trucks=0, num_stations=0))
-        reporter = Reporter(engine)
-        self.assertEqual(reporter.average_truck_utilization, 0.0)
-        self.assertEqual(reporter.average_station_utilization, 0.0)
-        self.assertEqual(reporter.total_loads_delivered, 0)
-
-
 class TestMarkdown(unittest.TestCase):
     def setUp(self):
         self.reporter = Reporter(engine_with_known_stats())

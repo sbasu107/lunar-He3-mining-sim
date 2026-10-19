@@ -35,6 +35,12 @@ class SimConfig:
     duration_hours: int = 72
     random_seed: int | None = None
 
+    def __post_init__(self) -> None:
+        for name in ("num_trucks", "num_stations", "duration_hours"):
+            value = getattr(self, name)
+            if value < 1:
+                raise ValueError(f"{name} must be at least 1 (got {value})")
+
     @property
     def duration_minutes(self) -> float:
         """Simulation duration converted to minutes (the internal time unit)."""

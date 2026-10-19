@@ -38,6 +38,15 @@ class Event:
 # ---------------------------------------------------------------------------
 # Mining Truck
 # ---------------------------------------------------------------------------
+class TruckState(Enum):
+    """What a truck is currently doing; each state has its own time total."""
+
+    MINING = auto()
+    TRAVELING = auto()
+    WAITING = auto()
+    UNLOADING = auto()
+
+
 @dataclass
 class MiningTruck:
     """Tracks a single truck's identity and cumulative operating statistics.
@@ -62,9 +71,12 @@ class MiningTruck:
     time_waiting: float = 0.0
     time_unloading: float = 0.0
 
-    # Internal bookkeeping — tracks when the current state began so the
-    # engine can compute elapsed time when the state changes.
+    # Internal bookkeeping — the current state, when it began, and the station
+    # the truck is assigned to (if any), so the engine can credit elapsed time
+    # when the state changes or the simulation ends.
+    _state: TruckState = field(default=TruckState.MINING, repr=False)
     _state_start: float = field(default=0.0, repr=False)
+    _station_id: int | None = field(default=None, repr=False)
 
 
 # ---------------------------------------------------------------------------
