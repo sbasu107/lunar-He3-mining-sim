@@ -6,6 +6,7 @@ instructions.md
 # Simulation reports
 results/*
 !results/.gitkeep
+!results/summary_report.md
 reports/*
 !reports/.gitkeep
 
