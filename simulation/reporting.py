@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 from typing import TYPE_CHECKING
 
@@ -9,6 +10,8 @@ from .config import HOURS_TO_MINUTES
 
 if TYPE_CHECKING:
     from .engine import SimulationEngine
+
+logger = logging.getLogger(__name__)
 
 
 class Reporter:
@@ -157,3 +160,4 @@ class Reporter:
 
         with open(path, "w", encoding="utf-8") as f:
             f.write(self.generate_markdown())
+        logger.info("Saved report to %s", path)

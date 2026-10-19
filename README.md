@@ -21,6 +21,7 @@ The project uses only the Python standard library (3.10+, developed on 3.12). Th
 python3 main.py                # 10 trucks, 3 stations, 72 hours
 python3 main.py 20 5           # 20 trucks, 5 stations
 python3 main.py 10 3 --seed 42 --output results/summary_report.md
+python3 main.py --log-level debug    # trace every event on stderr
 ```
 
 | Argument | Description | Default |
@@ -30,8 +31,9 @@ python3 main.py 10 3 --seed 42 --output results/summary_report.md
 | `--hours H` | Simulated duration in hours | `72` |
 | `--seed S` | Random seed for reproducible runs | random |
 | `--output PATH` | Also save the Markdown report to `PATH` | not saved |
+| `--log-level LEVEL` | `debug`, `info`, `warning`, or `error` | `warning` |
 
-The report prints to stdout as Markdown. Status messages go to stderr, so `python3 main.py > report.md` captures only the report.
+The report prints to stdout as Markdown. Status messages and log output go to stderr, so `python3 main.py > report.md` captures only the report. At `info`, the log shows each run's configuration and a summary; at `debug`, it also traces every event and station assignment.
 
 **Required output:** the report for n = 10, m = 3, 72 hours is in [`results/summary_report.md`](results/summary_report.md). It lists loads delivered, time mining, traveling, waiting, and unloading, and utilization for every truck, plus trucks served, busy and idle time, and utilization for every station.
 
@@ -73,7 +75,9 @@ The engine is the only class that changes state. Trucks and stations are plain d
 python3 -m unittest discover -s tests -v
 ```
 
-80 tests run on GitHub Actions for every push and pull request to `main`, using only `unittest`. Most engine tests replace the random generator with a stub that returns fixed durations, so results can be checked against hand calculations. Others check rules that must hold for any seed, such as "every truck's time adds up to the full duration". See the [tests README](tests/README.md) for the full strategy.
+91 tests run on GitHub Actions for every push and pull request to `main`, using only `unittest`. Most engine tests replace the random generator with a stub that returns fixed durations, so results can be checked against hand calculations. Others check rules that must hold for any seed, such as "every truck's time adds up to the full duration". See the [tests README](tests/README.md) for the full strategy.
+
+**Coverage:** CI runs the suite under [`coverage.py`](https://coverage.readthedocs.io/) and posts a per-file coverage table on each run's summary page in the Actions tab. It's a CI-only tool: you don't need it to run the tests or the simulation locally. The [tests README](tests/README.md#coverage) shows how to check coverage yourself if you want to.
 
 The engine draws every random number from its own `random.Random(seed)`, so the same `--seed` always produces the same report.
 

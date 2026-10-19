@@ -196,3 +196,15 @@ The engine draws all random numbers from its own `random.Random(config.random_se
 | System throughput | total loads ÷ duration in hours |
 
 `generate_markdown()` builds the report, `print_report()` prints it, and `save_markdown(path)` writes it to a file and creates any missing folders.
+
+## Logging
+
+Each module logs through the standard `logging` module under its own name (`simulation.engine`, `simulation.reporting`). The package attaches a `NullHandler` and never configures output itself, so importing it stays silent; the application decides where records go. `main.py` does this with `--log-level`, writing to stderr.
+
+| Level | Logger | Message |
+|---|---|---|
+| `INFO` | `simulation.engine` | Run configuration at start; events processed and loads delivered at the end |
+| `INFO` | `simulation.reporting` | Path of each saved report |
+| `DEBUG` | `simulation.engine` | Every processed event, every station assignment (wait and unload time), events left unprocessed after the end time, and each truck's end-of-run credit |
+
+Messages use `%`-style arguments rather than f-strings, so the per-event `DEBUG` calls cost almost nothing when that level is off.

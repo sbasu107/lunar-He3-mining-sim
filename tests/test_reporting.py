@@ -105,6 +105,13 @@ class TestOutput(unittest.TestCase):
             with open(path, encoding="utf-8") as f:
                 self.assertEqual(f.read(), self.reporter.generate_markdown())
 
+    def test_save_markdown_logs_path(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "report.md")
+            with self.assertLogs("simulation.reporting", level="INFO") as logs:
+                self.reporter.save_markdown(path)
+        self.assertEqual(logs.output, [f"INFO:simulation.reporting:Saved report to {path}"])
+
     def test_save_markdown_overwrites_existing_file(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = os.path.join(tmp, "report.md")
