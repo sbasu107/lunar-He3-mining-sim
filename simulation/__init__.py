@@ -6,12 +6,12 @@ from .models import Event, EventType, MiningTruck, TruckState, UnloadStation
 from .reporting import Reporter
 
 __all__ = [
-    "SimConfig",
-    "SimulationEngine",
-    "Reporter",
     "Event",
     "EventType",
     "MiningTruck",
+    "Reporter",
+    "SimConfig",
+    "SimulationEngine",
     "TruckState",
     "UnloadStation",
 ]
