@@ -4,7 +4,7 @@ import dataclasses
 import heapq
 import unittest
 
-from simulation import Event, EventType, MiningTruck, SimConfig, UnloadStation
+from simulation import Event, EventType, MiningTruck, SimConfig, TruckState, UnloadStation
 
 
 class TestSimConfig(unittest.TestCase):
@@ -24,19 +24,26 @@ class TestSimConfig(unittest.TestCase):
         with self.assertRaises(dataclasses.FrozenInstanceError):
             config.num_trucks = 5
 
-    @unittest.expectedFailure
     def test_rejects_non_positive_values(self):
-        # Known issue: only the CLI validates input. Constructing the config
-        # directly with zero stations lets the engine crash mid-run (min() of
-        # an empty station list) instead of failing fast here.
         for kwargs in (
             {"num_trucks": 0},
             {"num_stations": 0},
             {"duration_hours": 0},
             {"num_trucks": -1},
+            {"num_stations": -3},
+            {"duration_hours": -72},
         ):
-            with self.assertRaises(ValueError, msg=kwargs):
-                SimConfig(**kwargs)
+            with self.subTest(**kwargs):
+                with self.assertRaises(ValueError):
+                    SimConfig(**kwargs)
+
+    def test_error_names_the_invalid_field(self):
+        with self.assertRaisesRegex(ValueError, "num_stations must be at least 1"):
+            SimConfig(num_stations=0)
+
+    def test_accepts_minimum_values(self):
+        config = SimConfig(num_trucks=1, num_stations=1, duration_hours=1)
+        self.assertEqual(config.duration_minutes, 60)
 
 
 class TestEvent(unittest.TestCase):
@@ -76,6 +83,9 @@ class TestEntities(unittest.TestCase):
         self.assertEqual(truck.time_traveling, 0.0)
         self.assertEqual(truck.time_waiting, 0.0)
         self.assertEqual(truck.time_unloading, 0.0)
+
+    def test_truck_starts_mining(self):
+        self.assertIs(MiningTruck(id=0)._state, TruckState.MINING)
 
     def test_station_starts_free_with_zeroed_stats(self):
         station = UnloadStation(id=2)

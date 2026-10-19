@@ -129,7 +129,7 @@ Every timing rule from the spec is defined once here:
 | `MIN_MINING_HOURS` / `MAX_MINING_HOURS` | 1 / 5 | Mining duration range (whole hours) |
 | `MIN_UNLOAD_MINUTES` / `MAX_UNLOAD_MINUTES` | 30 / 60 | Unload duration range (whole minutes) |
 
-`SimConfig` is a frozen dataclass holding `num_trucks`, `num_stations`, `duration_hours`, and an optional `random_seed`. Because it is frozen, nothing can change the parameters while a run is in progress.
+`SimConfig` is a frozen dataclass holding `num_trucks`, `num_stations`, `duration_hours`, and an optional `random_seed`. Because it is frozen, nothing can change the parameters while a run is in progress. It raises `ValueError` if the trucks, stations, or duration are below 1, so invalid values are rejected whether they come from the CLI or from code.
 
 All internal times are in **minutes**. `SimConfig.duration_minutes` converts the run length, and only `Reporter` converts back to hours.
 
@@ -151,19 +151,23 @@ run():
         if it is after the end time: stop
         move the clock to the event's time
         call the handler for its type
+    move the clock to the end time
+    credit every truck's (and station's) unfinished activity up to the end
 ```
+
+`run()` can only be called once per engine; a second call raises `RuntimeError`. Create a new engine for another run.
 
 Handlers are looked up in a dispatch table (`_HANDLERS`) keyed by `EventType`.
 
 | Event | Handler records | Then schedules |
 |---|---|---|
 | `MINING_COMPLETE` | Time spent mining | `ARRIVE_STATION` in 30 min |
-| `ARRIVE_STATION` | 30 min of travel; picks a station (see below) | `START_UNLOAD` and `FINISH_UNLOAD` at that station |
+| `ARRIVE_STATION` | Time spent traveling; picks a station (see below) | `START_UNLOAD` and `FINISH_UNLOAD` at that station |
 | `START_UNLOAD` | Time spent waiting in the queue (0 if the station was free) | nothing |
 | `FINISH_UNLOAD` | Unload time, one delivered load, station busy time | `ARRIVE_MINE` in 30 min |
-| `ARRIVE_MINE` | 30 min of travel | `MINING_COMPLETE` after a new random 1–5 h |
+| `ARRIVE_MINE` | Time spent traveling | `MINING_COMPLETE` after a new random 1–5 h |
 
-Each truck stores `_state_start`, the time its current activity began. When the activity ends, the handler adds `clock - _state_start` to the right total.
+Each truck stores its current `TruckState` (mining, traveling, waiting, or unloading) and the time that state began. Every handler goes through one helper, `_transition`, which adds the elapsed time to that state's total and switches to the next state. When the run ends, the same accounting closes out whatever each truck is still doing, and an unload in progress also counts toward its station's busy time. As a result, each truck's four time totals always add up to the full duration.
 
 ### Choosing a station
 
@@ -192,11 +196,3 @@ The engine draws all random numbers from its own `random.Random(config.random_se
 | System throughput | total loads ÷ duration in hours |
 
 `generate_markdown()` builds the report, `print_report()` prints it, and `save_markdown(path)` writes it to a file and creates any missing folders.
-
-## Known issues
-
-The test suite found these, and each is tracked as an expected-failure test:
-
-- [#5](https://github.com/sbasu107/lunar-He3-mining-sim/issues/5): time still in progress when the run ends is not counted, so utilization reads slightly low.
-- [#6](https://github.com/sbasu107/lunar-He3-mining-sim/issues/6): calling `run()` twice on the same engine corrupts its statistics.
-- [#7](https://github.com/sbasu107/lunar-He3-mining-sim/issues/7): `SimConfig` does not reject zero or negative values (the CLI does).

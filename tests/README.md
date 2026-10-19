@@ -1,6 +1,6 @@
 # Tests
 
-77 unit tests built on the standard library's `unittest`. There is nothing to install, and the full suite runs in under a second.
+80 unit tests built on the standard library's `unittest`. There is nothing to install, and the full suite runs in under a second.
 
 ```bash
 python3 -m unittest discover -s tests -v                 # everything
@@ -21,10 +21,10 @@ A simulation is hard to check by eye, because almost any output looks plausible.
 
 | File | Tests | Covers |
 |---|---|---|
-| [`test_engine.py`](test_engine.py) | 37 | Hand-calculated scenarios, queueing rules, invariants, edge cases, reproducibility, known issues |
-| [`test_reporting.py`](test_reporting.py) | 16 | Metric math against hand-set numbers, exact Markdown rows, saving files |
+| [`test_engine.py`](test_engine.py) | 39 | Hand-calculated scenarios, queueing rules, end-of-run accounting, invariants, edge cases, reproducibility |
+| [`test_reporting.py`](test_reporting.py) | 14 | Metric math against hand-set numbers, exact Markdown rows, saving files |
+| [`test_models.py`](test_models.py) | 14 | `SimConfig` defaults, validation, and immutability; `Event` ordering on a heap |
 | [`test_cli.py`](test_cli.py) | 13 | Argument parsing, rejecting bad input, stdout vs. stderr, `--output` |
-| [`test_models.py`](test_models.py) | 11 | `SimConfig` defaults and immutability, `Event` ordering on a heap |
 
 ### `test_engine.py` in detail
 
@@ -32,19 +32,18 @@ A simulation is hard to check by eye, because almost any output looks plausible.
 |---|---|
 | `TestSingleTruckScenarios` | One 150-minute cycle (1 h mine, 30 min travel, 30 min unload, 30 min travel) delivers exactly one load. An event exactly at the end time still counts. |
 | `TestQueueing` | Two trucks at one station wait 0 and 30 min, and four trucks wait 0, 30, 60, and 90. A free station is used before anyone queues. A truck joins the station with the shorter wait. |
+| `TestEndOfRunAccounting` | Mining, travel, waiting, or unloading still in progress when the run ends is credited up to the end time, so every truck's time totals add up to the full duration. |
+| `TestRunOnce` | Calling `run()` a second time raises `RuntimeError` and leaves the results untouched. |
 | `TestInvariants` | No negative times; loads delivered equals trucks served; truck unload time equals station busy time; random draws stay within the spec's ranges; no waiting when there are at least as many stations as trucks. |
 | `TestEdgeCases` | A 1-hour run delivers nothing. One station shared by 50 trucks stays over 90% busy. |
 | `TestReproducibility` | The same seed gives identical results, and the engine leaves the global `random` state untouched. |
-| `TestKnownIssues` | Tests for open bugs (see below). |
 
-## Expected failures
+## Regression tests for fixed bugs
 
-Seven tests are marked `@unittest.expectedFailure`. Each one describes correct behavior that the code doesn't have yet:
+The suite originally caught three bugs. Each was tracked as an `@unittest.expectedFailure` test until it was fixed. Those tests now run as normal regression tests:
 
 | Issue | Tests |
 |---|---|
-| [#5](https://github.com/sbasu107/lunar-He3-mining-sim/issues/5): time still in progress at the end of a run is not counted | 5 in `TestKnownIssues` |
-| [#6](https://github.com/sbasu107/lunar-He3-mining-sim/issues/6): calling `run()` twice corrupts results | `test_running_twice_does_not_corrupt_results` |
-| [#7](https://github.com/sbasu107/lunar-He3-mining-sim/issues/7): `SimConfig` does not validate its values | `test_rejects_non_positive_values` in `test_models.py` |
-
-These keep CI green while the bugs are open. When a fix lands, its test passes, `unittest` reports an **unexpected success**, and the run fails. That is the signal to delete the decorator so the test becomes a normal regression test.
+| [#5](https://github.com/sbasu107/lunar-He3-mining-sim/issues/5): time still in progress at the end of a run was not counted | `TestEndOfRunAccounting` |
+| [#6](https://github.com/sbasu107/lunar-He3-mining-sim/issues/6): calling `run()` twice corrupted results | `TestRunOnce` |
+| [#7](https://github.com/sbasu107/lunar-He3-mining-sim/issues/7): `SimConfig` did not validate its values | `test_rejects_non_positive_values` and `test_error_names_the_invalid_field` in `test_models.py` |
