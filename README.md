@@ -1,6 +1,6 @@
 # Lunar Helium-3 Mining Simulation
 
-A discrete-event simulation of a lunar Helium-3 mining operation: **n** mining trucks, **m** unload stations, and a configurable run time (72 hours by default). It reports performance and efficiency statistics for every truck and station.
+A discrete-event simulation of a lunar Helium-3 mining operation with **n** trucks and **m** unload stations, reporting performance and efficiency statistics for each one.
 
 ![Mining Animation](assets/mining_sim_animation.gif)
 
@@ -24,204 +24,50 @@ python3 main.py 10 3 --seed 42 --output results/summary_report.md
 | `--seed S` | Random seed for reproducible runs | random |
 | `--output PATH` | Also save the Markdown report to `PATH` | not saved |
 
-The report prints to stdout as Markdown. Runtime and save messages go to stderr, so `python3 main.py > report.md` captures only the report.
+The report prints to stdout as Markdown. Status messages go to stderr, so `python3 main.py > report.md` captures only the report.
 
-The required report for **n = 10, m = 3, 72 hours** is in [`results/summary_report.md`](results/summary_report.md).
+**Required output:** the report for n = 10, m = 3, 72 hours is in [`results/summary_report.md`](results/summary_report.md). It lists loads delivered, time mining, traveling, waiting, and unloading, and utilization for every truck, plus trucks served, busy and idle time, and utilization for every station.
 
-## The Problem
+## Approach: Discrete-Event Simulation
 
-- Every truck starts empty at a mining site. Sites are unlimited, so mining never involves waiting.
-- Mining takes a random 1–5 hours. Travel between a site and the stations takes 30 minutes each way.
-- Unloading takes a random 30–60 minutes. Each station serves one truck at a time.
-- An arriving truck goes to the first free station. If none is free, it joins the queue with the shortest wait and stays in that queue until it has unloaded.
+A minute-by-minute loop would spend most of its time on ticks where nothing changes. So I modeled only the moments when something *does* change: a truck finishes mining, arrives at a station, starts or finishes unloading, or returns to a site.
 
-## How I Approached It
+The engine keeps these events in a priority queue (`heapq`) ordered by time. It pops the earliest event, jumps the clock straight to it, and handles it, which usually schedules that truck's next event. The cost scales with the number of events, not simulated minutes, so a 72-hour run finishes in a few milliseconds. Timing is also exact, with no tick size to choose.
 
-My first instinct was a time-stepped loop: advance a clock one minute at a time and update every truck on each tick. Sketching it out, I saw two problems:
+## Key Design Decision: Queues Without a Queue
 
-1. **Most ticks do nothing.** A truck mining for 4 hours sits through 240 ticks where nothing changes. The work grows with simulated time × number of trucks, not with how much actually happens.
-2. **The tick size limits accuracy.** Unload times have 1-minute resolution, so a coarser tick loses precision and a finer one wastes even more work.
+The trickiest rule was "join the queue with the shortest wait". A station's wait depends on the trucks already queued there, and their unload times are random.
 
-What I actually care about are the moments when something changes: a truck finishes mining, arrives at a station, starts or finishes unloading, or returns to a site. That is a **discrete-event simulation (DES)**. I keep a priority queue of future events ordered by time, pop the earliest one, jump the clock straight to it, and handle it. Handling an event usually schedules the truck's next event.
-
-This gave me three things:
-
-- **Speed.** The cost scales with the number of events, not simulated minutes. A 72-hour run with 10 trucks finishes in a few milliseconds, comfortably faster than real time.
-- **Exact timing.** Events happen at their true timestamps, so no tick size is involved.
-- **Simplicity.** Each truck follows a fixed cycle of five events, so each event type maps to one small handler.
-
-The spec asks for no third-party simulation libraries, so I built the event loop on `heapq` from the standard library.
-
-### Queues without a queue
-
-The queueing rule was the trickiest part. "Join the queue with the shortest wait" means a station's wait has to include the trucks already queued there, and their unload times are random.
-
-I solved this by rolling each truck's unload duration **when it arrives**, not when it starts unloading. Each station then needs only one number, `available_at`: the time it will next be free, counting every truck already committed to it. An arriving truck:
+I solved this by rolling each truck's unload duration **when it arrives** rather than when it starts unloading. Each station then needs only one number, `available_at`: the time it will next be free, counting every truck already assigned to it. An arriving truck:
 
 1. picks the station with the smallest `available_at`,
 2. starts unloading at `max(now, available_at)`,
 3. pushes that station's `available_at` forward by its unload time.
 
-A free station always has the smallest `available_at`, which covers the "first available" rule. Once a truck is assigned, its events are scheduled at that station, which covers the "stays in its queue" rule. No queue data structure is needed. The [`simulation` README](simulation/README.md) walks through each event handler step by step.
+Because every `available_at` is exact, the smallest one is the true shortest wait. A free station always has the smallest value, which covers "go to the first available station". A truck's unload is scheduled at one station and never moved, which covers "stay in the chosen queue". No queue data structure is needed.
 
 ## Architecture
 
 ```mermaid
-classDiagram
-    direction LR
-
-    class CLI {
-        <<main.py>>
-        +main(argv) int
-    }
-    class SimConfig {
-        <<frozen dataclass>>
-        +int num_trucks
-        +int num_stations
-        +int duration_hours
-        +int random_seed
-        +duration_minutes() float
-    }
-    class SimulationEngine {
-        +SimConfig config
-        +float clock
-        +Random rng
-        +list~Event~ event_queue
-        +list~MiningTruck~ trucks
-        +list~UnloadStation~ stations
-        +run() None
-        -_schedule(event)
-        -_dispatch(event)
-        -_on_mining_complete(event)
-        -_on_arrive_station(event)
-        -_on_start_unload(event)
-        -_on_finish_unload(event)
-        -_on_arrive_mine(event)
-    }
-    class Event {
-        <<dataclass, ordered by time>>
-        +float time
-        +EventType type
-        +int truck_id
-        +int station_id
-    }
-    class EventType {
-        <<enumeration>>
-        MINING_COMPLETE
-        ARRIVE_STATION
-        START_UNLOAD
-        FINISH_UNLOAD
-        ARRIVE_MINE
-    }
-    class MiningTruck {
-        <<dataclass>>
-        +int id
-        +int loads_delivered
-        +float time_mining
-        +float time_traveling
-        +float time_waiting
-        +float time_unloading
-    }
-    class UnloadStation {
-        <<dataclass>>
-        +int id
-        +float available_at
-        +int trucks_served
-        +float time_busy
-    }
-    class Reporter {
-        +SimulationEngine engine
-        +truck_utilization(id) float
-        +station_utilization(id) float
-        +generate_markdown() str
-        +print_report() None
-        +save_markdown(path) None
-    }
-
-    CLI ..> SimConfig : builds from argv
-    CLI ..> SimulationEngine : creates and runs
-    CLI ..> Reporter : prints / saves report
-    SimulationEngine --> SimConfig : reads parameters
-    SimulationEngine "1" *-- "n" MiningTruck : owns
-    SimulationEngine "1" *-- "m" UnloadStation : owns
-    SimulationEngine "1" o-- "*" Event : schedules on heap
-    Event --> EventType
-    Reporter --> SimulationEngine : reads final stats
+flowchart LR
+    CLI["main.py<br/>parse n, m, options"] --> Config["SimConfig<br/>frozen parameters"]
+    CLI --> Engine["SimulationEngine<br/>clock + event queue"]
+    Engine --> Trucks["MiningTruck × n"]
+    Engine --> Stations["UnloadStation × m"]
+    CLI --> Reporter["Reporter<br/>statistics + Markdown"]
+    Reporter -. reads .-> Engine
 ```
 
-Each class has one job:
+The engine is the only class that changes state. Trucks and stations are plain dataclasses that hold running totals, and `Reporter` reads a finished engine without changing it, so formatting never leaks into simulation logic. The [`simulation` README](simulation/README.md) has the full class diagram, the truck lifecycle, and a walkthrough of each event handler.
 
-- **`SimConfig`** holds the run parameters. It is frozen, so nothing can change them mid-run.
-- **`MiningTruck`** and **`UnloadStation`** are plain state holders that accumulate their own statistics. They contain no simulation logic.
-- **`Event`** / **`EventType`** describe *what* happens and *when*. `Event` sorts by time only, so `heapq` orders the queue chronologically.
-- **`SimulationEngine`** owns the clock, the event queue, and all entities, and it is the only place where state changes. Handlers are looked up in a dispatch table keyed by `EventType` instead of an `if`/`elif` chain.
-- **`Reporter`** reads a finished engine and derives the metrics. Keeping it separate means the engine knows nothing about formatting, and a new output format would be a new method, not an engine change.
-- **`main.py`** only parses arguments and wires the pieces together.
+## Testing and Reproducibility
 
-Module-level details (constants, event handlers, metric formulas) are in the [`simulation` README](simulation/README.md).
-
-### Truck lifecycle
-
-Every truck repeats this cycle until the clock reaches the configured duration:
-
-```mermaid
-stateDiagram-v2
-    direction LR
-    [*] --> Mining : t = 0
-    Mining --> ToStation : MINING_COMPLETE
-    ToStation --> Waiting : ARRIVE_STATION<br/>(pick station)
-    Waiting --> Unloading : START_UNLOAD
-    Unloading --> ToMine : FINISH_UNLOAD
-    ToMine --> Mining : ARRIVE_MINE
+```bash
+python3 -m unittest discover -s tests -v
 ```
 
-Waiting takes zero time when a station is free.
+77 tests run on GitHub Actions for every push and pull request to `main`, using only `unittest`. Most engine tests replace the random generator with a stub that returns fixed durations, so results can be checked against hand calculations. Others check rules that must hold for any seed, such as "loads delivered equals trucks served". A few tests are marked as expected failures for known bugs, each tracked in a GitHub issue. See the [tests README](tests/README.md) for the full strategy.
 
-## Statistics Reported
+The engine draws every random number from its own `random.Random(seed)`, so the same `--seed` always produces the same report.
 
-| Scope | Metrics |
-|---|---|
-| System | Total loads delivered, throughput (loads/hour), average truck and station utilization |
-| Per truck | Loads delivered, hours mining / traveling / waiting / unloading, utilization |
-| Per station | Trucks served, busy and idle hours, utilization |
-
-Truck utilization counts mining, traveling, and unloading as productive time and queue waiting as idle. Station utilization is busy time divided by the simulated duration.
-
-## Engineering Practices
-
-- **Reproducible.** The engine uses its own `random.Random(seed)` instead of the global RNG, so a given `--seed` always produces the same report.
-- **Single source of truth for constants.** Every timing value lives in `simulation/config.py`, and all internal time is in minutes. Conversion to hours happens only in reporting.
-- **Tested in CI.** 77 `unittest` tests run on GitHub Actions for every push and pull request to `main`. They combine hand-calculated scenarios (with a stub random generator) with rules checked across many seeds. The [tests README](tests/README.md) explains the strategy.
-
-  ```bash
-  python3 -m unittest discover -s tests -v
-  ```
-
-- **Bugs tracked in the open.** The tests caught three bugs in the engine and config ([#5](https://github.com/sbasu107/lunar-He3-mining-sim/issues/5), [#6](https://github.com/sbasu107/lunar-He3-mining-sim/issues/6), [#7](https://github.com/sbasu107/lunar-He3-mining-sim/issues/7)). Each has a GitHub issue and an expected-failure test, so CI flags it as soon as it's fixed.
-
-- **Incremental delivery.** I built the project in stages (config and models, engine, reporting, CLI and tests, documentation, final report). Each stage went through its own branch and pull request.
-
-## Project Structure
-
-```
-.
-├── main.py                 # CLI entry point
-├── simulation/
-│   ├── README.md           # Module-level design notes
-│   ├── config.py           # Constants + SimConfig
-│   ├── models.py           # Event, EventType, MiningTruck, UnloadStation
-│   ├── engine.py           # SimulationEngine (discrete-event loop)
-│   └── reporting.py        # Reporter (statistics + Markdown output)
-├── tests/
-│   ├── README.md           # Testing strategy + expected failures
-│   ├── test_engine.py
-│   ├── test_reporting.py
-│   ├── test_cli.py
-│   └── test_models.py
-├── results/
-│   └── summary_report.md   # Required report (n=10, m=3, 72h)
-├── assets/
-│   └── mining_sim_animation.gif
-└── .github/workflows/
-    └── tests.yml           # CI
-```
+Each stage of the project was developed on its own branch and merged through a pull request with CI.
