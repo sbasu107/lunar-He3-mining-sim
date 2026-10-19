@@ -1,6 +1,6 @@
 # `simulation` package
 
-The simulation engine and everything it depends on. For the overall approach and the class diagram, see the [project README](../README.md).
+The simulation engine and everything it depends on. For the overall approach and the queueing design, see the [project README](../README.md).
 
 | Module | Contents |
 |---|---|
@@ -17,6 +17,106 @@ from simulation import Reporter, SimConfig, SimulationEngine
 engine = SimulationEngine(SimConfig(num_trucks=10, num_stations=3, duration_hours=72, random_seed=42))
 engine.run()
 Reporter(engine).print_report()
+```
+
+## Class diagram
+
+```mermaid
+classDiagram
+    direction LR
+
+    class CLI {
+        <<main.py>>
+        +main(argv) int
+    }
+    class SimConfig {
+        <<frozen dataclass>>
+        +int num_trucks
+        +int num_stations
+        +int duration_hours
+        +int random_seed
+        +duration_minutes() float
+    }
+    class SimulationEngine {
+        +SimConfig config
+        +float clock
+        +Random rng
+        +list~Event~ event_queue
+        +list~MiningTruck~ trucks
+        +list~UnloadStation~ stations
+        +run() None
+        -_schedule(event)
+        -_dispatch(event)
+        -_on_mining_complete(event)
+        -_on_arrive_station(event)
+        -_on_start_unload(event)
+        -_on_finish_unload(event)
+        -_on_arrive_mine(event)
+    }
+    class Event {
+        <<dataclass, ordered by time>>
+        +float time
+        +EventType type
+        +int truck_id
+        +int station_id
+    }
+    class EventType {
+        <<enumeration>>
+        MINING_COMPLETE
+        ARRIVE_STATION
+        START_UNLOAD
+        FINISH_UNLOAD
+        ARRIVE_MINE
+    }
+    class MiningTruck {
+        <<dataclass>>
+        +int id
+        +int loads_delivered
+        +float time_mining
+        +float time_traveling
+        +float time_waiting
+        +float time_unloading
+    }
+    class UnloadStation {
+        <<dataclass>>
+        +int id
+        +float available_at
+        +int trucks_served
+        +float time_busy
+    }
+    class Reporter {
+        +SimulationEngine engine
+        +truck_utilization(id) float
+        +station_utilization(id) float
+        +generate_markdown() str
+        +print_report() None
+        +save_markdown(path) None
+    }
+
+    CLI ..> SimConfig : builds from argv
+    CLI ..> SimulationEngine : creates and runs
+    CLI ..> Reporter : prints / saves report
+    SimulationEngine --> SimConfig : reads parameters
+    SimulationEngine "1" *-- "n" MiningTruck : owns
+    SimulationEngine "1" *-- "m" UnloadStation : owns
+    SimulationEngine "1" o-- "*" Event : schedules on heap
+    Event --> EventType
+    Reporter --> SimulationEngine : reads final stats
+```
+
+## Truck lifecycle
+
+Every truck repeats this cycle until the clock reaches the configured duration. Waiting takes no time when a station is free.
+
+```mermaid
+stateDiagram-v2
+    direction LR
+    [*] --> Mining : t = 0
+    Mining --> ToStation : MINING_COMPLETE
+    ToStation --> Waiting : ARRIVE_STATION<br/>(pick station)
+    Waiting --> Unloading : START_UNLOAD
+    Unloading --> ToMine : FINISH_UNLOAD
+    ToMine --> Mining : ARRIVE_MINE
 ```
 
 ## `config.py`: constants and parameters
