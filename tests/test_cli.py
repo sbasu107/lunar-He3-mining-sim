@@ -2,6 +2,7 @@
 
 import argparse
 import io
+import logging
 import os
 import tempfile
 import unittest
@@ -11,10 +12,20 @@ import main as cli
 
 
 def run_cli(argv: list[str]) -> tuple[int, str, str]:
-    """Run main() and capture (exit code, stdout, stderr)."""
+    """Run main() and capture (exit code, stdout, stderr).
+
+    main() reconfigures the root logger, so its handlers and level are
+    restored afterwards to keep tests independent.
+    """
+    root = logging.getLogger()
+    saved_handlers, saved_level = root.handlers[:], root.level
     out, err = io.StringIO(), io.StringIO()
-    with redirect_stdout(out), redirect_stderr(err):
-        code = cli.main(argv)
+    try:
+        with redirect_stdout(out), redirect_stderr(err):
+            code = cli.main(argv)
+    finally:
+        root.handlers[:] = saved_handlers
+        root.setLevel(saved_level)
     return code, out.getvalue(), err.getvalue()
 
 
@@ -27,6 +38,12 @@ class TestParser(unittest.TestCase):
         self.assertEqual((args.trucks, args.stations, args.hours), (10, 3, 72))
         self.assertIsNone(args.seed)
         self.assertIsNone(args.output)
+        self.assertEqual(args.log_level, "WARNING")
+
+    def test_log_level_is_case_insensitive(self):
+        for value in ("debug", "Info", "WARNING", "error"):
+            with self.subTest(value=value):
+                self.assertEqual(self.parse(["--log-level", value]).log_level, value.upper())
 
     def test_positional_n_and_m(self):
         args = self.parse(["20", "5"])
@@ -48,7 +65,8 @@ class TestParser(unittest.TestCase):
 
     def test_invalid_input_exits_with_usage_error(self):
         for argv in (["0"], ["-1"], ["abc"], ["1.5"], ["3", "0"],
-                     ["1", "2", "3"], ["--hours", "0"], ["--seed", "x"]):
+                     ["1", "2", "3"], ["--hours", "0"], ["--seed", "x"],
+                     ["--log-level", "loud"]):
             with self.subTest(argv=argv):
                 with redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as ctx:
                     self.parse(argv)
@@ -104,6 +122,29 @@ class TestMain(unittest.TestCase):
             with open(path, encoding="utf-8") as f:
                 self.assertEqual(f.read().strip(), out.strip())
             self.assertIn(path, err)
+
+
+class TestLogLevel(unittest.TestCase):
+    def test_default_level_writes_no_log_records(self):
+        _, _, err = run_cli(["--seed", "1"])
+        self.assertNotIn("INFO", err)
+        self.assertNotIn("DEBUG", err)
+
+    def test_info_level_logs_run_summary_to_stderr(self):
+        _, out, err = run_cli(["--seed", "1", "--log-level", "info"])
+        self.assertIn("INFO simulation.engine: Starting simulation: 10 trucks", err)
+        self.assertIn("INFO simulation.engine: Simulation finished at t=4320 min", err)
+        self.assertNotIn("DEBUG", err)
+        self.assertNotIn("simulation.engine", out)
+
+    def test_debug_level_traces_events(self):
+        _, _, err = run_cli(["1", "1", "--hours", "2", "--seed", "1", "--log-level", "debug"])
+        self.assertIn("DEBUG simulation.engine: t=", err)
+
+    def test_logging_does_not_change_the_report(self):
+        _, quiet, _ = run_cli(["--seed", "42"])
+        _, verbose, _ = run_cli(["--seed", "42", "--log-level", "debug"])
+        self.assertEqual(quiet, verbose)
 
 
 if __name__ == "__main__":

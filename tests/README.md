@@ -1,6 +1,6 @@
 # Tests
 
-80 unit tests built on the standard library's `unittest`. There is nothing to install, and the full suite runs in under a second.
+91 unit tests built on the standard library's `unittest`. There is nothing to install, and the full suite runs in under a second.
 
 ```bash
 python3 -m unittest discover -s tests -v                 # everything
@@ -8,7 +8,19 @@ python3 -m unittest tests.test_engine -v                 # one file
 python3 -m unittest tests.test_engine.TestQueueing -v    # one class
 ```
 
-The same command runs on GitHub Actions for every push and pull request to `main` ([`tests.yml`](../.github/workflows/tests.yml)).
+The same suite runs on GitHub Actions for every push and pull request to `main` ([`tests.yml`](../.github/workflows/tests.yml)).
+
+## Coverage
+
+CI runs the tests under [`coverage.py`](https://coverage.readthedocs.io/) and adds a per-file coverage table to each run's summary page in the Actions tab. Coverage is currently 99%; the only uncovered line is `sys.exit(main())` in `main.py`, which runs only when the file is launched from a terminal.
+
+`coverage.py` is the one third-party tool the project uses, and only in CI. The tests and the simulation run without it. To check coverage locally, install it in a virtual environment and run:
+
+```bash
+python3 -m pip install coverage
+python3 -m coverage run --source=simulation,main -m unittest discover -s tests
+python3 -m coverage report -m
+```
 
 ## Strategy
 
@@ -21,10 +33,10 @@ A simulation is hard to check by eye, because almost any output looks plausible.
 
 | File | Tests | Covers |
 |---|---|---|
-| [`test_engine.py`](test_engine.py) | 39 | Hand-calculated scenarios, queueing rules, end-of-run accounting, invariants, edge cases, reproducibility |
-| [`test_reporting.py`](test_reporting.py) | 14 | Metric math against hand-set numbers, exact Markdown rows, saving files |
+| [`test_engine.py`](test_engine.py) | 44 | Hand-calculated scenarios, queueing rules, end-of-run accounting, invariants, edge cases, reproducibility, logging |
+| [`test_cli.py`](test_cli.py) | 18 | Argument parsing, rejecting bad input, stdout vs. stderr, `--output`, `--log-level` |
+| [`test_reporting.py`](test_reporting.py) | 15 | Metric math against hand-set numbers, exact Markdown rows, saving files |
 | [`test_models.py`](test_models.py) | 14 | `SimConfig` defaults, validation, and immutability; `Event` ordering on a heap |
-| [`test_cli.py`](test_cli.py) | 13 | Argument parsing, rejecting bad input, stdout vs. stderr, `--output` |
 
 ### `test_engine.py` in detail
 
@@ -37,6 +49,7 @@ A simulation is hard to check by eye, because almost any output looks plausible.
 | `TestInvariants` | No negative times; loads delivered equals trucks served; truck unload time equals station busy time; random draws stay within the spec's ranges; no waiting when there are at least as many stations as trucks. |
 | `TestEdgeCases` | A 1-hour run delivers nothing. One station shared by 50 trucks stays over 90% busy. |
 | `TestReproducibility` | The same seed gives identical results, and the engine leaves the global `random` state untouched. |
+| `TestLogging` | `info` logs the run's configuration and summary; `debug` logs each event, station assignment, and end-of-run credit, checked line by line for a hand-calculated run. |
 
 ## Regression tests for fixed bugs
 

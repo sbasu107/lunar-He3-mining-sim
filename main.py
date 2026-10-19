@@ -1,15 +1,17 @@
 """Command-line entry point for the lunar He-3 mining simulation.
 
 Usage:
-    python3 main.py [n] [m] [--hours H] [--seed S] [--output PATH]
+    python3 main.py [n] [m] [--hours H] [--seed S] [--output PATH] [--log-level LEVEL]
 
 Examples:
     python3 main.py                      # 10 trucks, 3 stations, 72 hours
     python3 main.py 20 5                 # 20 trucks, 5 stations
     python3 main.py 10 3 --seed 42 --output results/summary_report.md
+    python3 main.py --log-level debug    # trace every event on stderr
 """
 
 import argparse
+import logging
 import sys
 import time
 
@@ -18,6 +20,8 @@ from simulation import Reporter, SimConfig, SimulationEngine
 DEFAULT_TRUCKS = 10
 DEFAULT_STATIONS = 3
 DEFAULT_HOURS = 72
+LOG_LEVELS = ("DEBUG", "INFO", "WARNING", "ERROR")
+DEFAULT_LOG_LEVEL = "WARNING"
 
 
 def positive_int(value: str) -> int:
@@ -59,11 +63,26 @@ def build_parser() -> argparse.ArgumentParser:
         help="also save the Markdown report to PATH "
              "(e.g. results/summary_report.md)",
     )
+    parser.add_argument(
+        "--log-level", type=str.upper, choices=LOG_LEVELS, default=DEFAULT_LOG_LEVEL,
+        help=f"log detail written to stderr (default: {DEFAULT_LOG_LEVEL})",
+    )
     return parser
+
+
+def configure_logging(level: str) -> None:
+    """Send log records at ``level`` and above to stderr."""
+    logging.basicConfig(
+        level=level,
+        format="%(levelname)s %(name)s: %(message)s",
+        stream=sys.stderr,
+        force=True,
+    )
 
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    configure_logging(args.log_level)
 
     config = SimConfig(
         num_trucks=args.trucks,

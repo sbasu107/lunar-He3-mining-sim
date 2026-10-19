@@ -7,6 +7,7 @@ for any run.
 """
 
 import copy
+import logging
 import random
 import unittest
 
@@ -387,6 +388,47 @@ class TestEdgeCases(unittest.TestCase):
                                             duration_hours=24 * 30, random_seed=0))
         engine.run()
         self.assertGreater(sum(t.loads_delivered for t in engine.trucks), 0)
+
+
+class TestLogging(unittest.TestCase):
+    """One 1-truck cycle in 3 h: 5 events (mine, arrive, start, finish, return)."""
+
+    def run_logged(self, level):
+        engine = stub_engine(1, 1, hours=3)
+        with self.assertLogs("simulation.engine", level=level) as logs:
+            engine.run()
+        return [record.getMessage() for record in logs.records]
+
+    def test_info_logs_start_and_summary(self):
+        messages = self.run_logged(logging.INFO)
+        self.assertEqual(messages, [
+            "Starting simulation: 1 trucks, 1 stations, 3 h (seed=None)",
+            "Simulation finished at t=180 min: 5 events processed, 1 loads delivered",
+        ])
+
+    def test_debug_logs_every_processed_event(self):
+        messages = self.run_logged(logging.DEBUG)
+        events = [m for m in messages if m.startswith("t=")]
+        self.assertEqual(events, [
+            "t=60 MINING_COMPLETE truck=0 station=None",
+            "t=90 ARRIVE_STATION truck=0 station=None",
+            "t=90 START_UNLOAD truck=0 station=0",
+            "t=120 FINISH_UNLOAD truck=0 station=0",
+            "t=150 ARRIVE_MINE truck=0 station=None",
+        ])
+
+    def test_debug_logs_station_assignment(self):
+        messages = self.run_logged(logging.DEBUG)
+        self.assertIn("Truck 0 assigned to station 0: wait 0 min, unload 30 min", messages)
+
+    def test_debug_logs_end_of_run_credit(self):
+        messages = self.run_logged(logging.DEBUG)
+        self.assertIn("1 events scheduled after t=180 were not processed", messages)
+        self.assertIn("Truck 0 still MINING at end; credited 30 min", messages)
+
+    def test_package_installs_null_handler(self):
+        handlers = logging.getLogger("simulation").handlers
+        self.assertTrue(any(isinstance(h, logging.NullHandler) for h in handlers))
 
 
 class TestReproducibility(unittest.TestCase):

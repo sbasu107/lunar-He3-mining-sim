@@ -1,6 +1,7 @@
 """Discrete-event simulation engine for the lunar He-3 mining operation."""
 
 import heapq
+import logging
 import random
 from typing import Callable, ClassVar
 
@@ -14,6 +15,8 @@ from .config import (
     SimConfig,
 )
 from .models import Event, EventType, MiningTruck, TruckState, UnloadStation
+
+logger = logging.getLogger(__name__)
 
 # The MiningTruck attribute that accumulates time spent in each state.
 _STATE_TOTALS = {
@@ -70,17 +73,35 @@ class SimulationEngine:
             )
         self._has_run = True
 
-        end_time = self.config.duration_minutes
+        config = self.config
+        logger.info(
+            "Starting simulation: %d trucks, %d stations, %d h (seed=%s)",
+            config.num_trucks, config.num_stations, config.duration_hours, config.random_seed,
+        )
+
+        end_time = config.duration_minutes
+        events_processed = 0
         self._initialize_events()
         while self.event_queue:
             event = heapq.heappop(self.event_queue)
             if event.time > end_time:
+                heapq.heappush(self.event_queue, event)
                 break
             self.clock = event.time
             self._dispatch(event)
+            events_processed += 1
 
+        logger.debug(
+            "%d events scheduled after t=%.0f were not processed",
+            len(self.event_queue), end_time,
+        )
         self.clock = end_time
         self._credit_in_progress_activities()
+
+        logger.info(
+            "Simulation finished at t=%.0f min: %d events processed, %d loads delivered",
+            self.clock, events_processed, sum(t.loads_delivered for t in self.trucks),
+        )
 
     # ------------------------------------------------------------------
     # Internals
@@ -128,12 +149,20 @@ class SimulationEngine:
         """Credit each truck's (and station's) unfinished activity at the end."""
         for truck in self.trucks:
             elapsed = self._credit_elapsed(truck)
+            logger.debug(
+                "Truck %d still %s at end; credited %.0f min",
+                truck.id, truck._state.name, elapsed,
+            )
             if truck._state is TruckState.UNLOADING:
                 assert truck._station_id is not None
                 self.stations[truck._station_id].time_busy += elapsed
 
     def _dispatch(self, event: Event) -> None:
         """Route an event to the appropriate handler method."""
+        logger.debug(
+            "t=%.0f %s truck=%d station=%s",
+            event.time, event.type.name, event.truck_id, event.station_id,
+        )
         handler = self._HANDLERS[event.type]
         handler(self, event)
 
@@ -169,6 +198,10 @@ class SimulationEngine:
         unload_duration = self.rng.randint(MIN_UNLOAD_MINUTES, MAX_UNLOAD_MINUTES)
         best_station.available_at = unload_start + unload_duration
         truck._station_id = best_station.id
+        logger.debug(
+            "Truck %d assigned to station %d: wait %.0f min, unload %d min",
+            truck.id, best_station.id, unload_start - self.clock, unload_duration,
+        )
 
         # Schedule the start and finish of unloading
         self._schedule(Event(
