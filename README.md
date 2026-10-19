@@ -1,4 +1,11 @@
-# Lunar Helium-3 Mining Simulation
+<table>
+<tr>
+<td><h1>Lunar Helium-3 Mining Simulation</h1></td>
+<td align="right" valign="middle">
+<a href="https://github.com/sbasu107/lunar-He3-mining-sim/actions/workflows/tests.yml"><img src="https://github.com/sbasu107/lunar-He3-mining-sim/actions/workflows/tests.yml/badge.svg" alt="Tests"></a>
+</td>
+</tr>
+</table>
 
 A discrete-event simulation of a lunar Helium-3 mining operation with **n** trucks and **m** unload stations, reporting performance and efficiency statistics for each one.
 

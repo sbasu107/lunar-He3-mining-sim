@@ -18,6 +18,10 @@ dist/
 build/
 *.egg
 
+# Coverage
+.coverage
+htmlcov/
+
 # Virtual environments
 venv/
 .venv/

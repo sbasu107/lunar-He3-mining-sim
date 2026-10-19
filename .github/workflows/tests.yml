@@ -20,6 +20,13 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Run tests
+      - name: Install coverage
+        run: python -m pip install coverage
+
+      - name: Run tests with coverage
+        run: python -m coverage run --source=simulation,main -m unittest discover -s tests
+
+      - name: Report coverage
         run: |
-          python -m unittest discover -s tests
+          python -m coverage report -m
+          python -m coverage report --format=markdown >> "$GITHUB_STEP_SUMMARY"
