@@ -8,7 +8,7 @@ A discrete-event simulation of a lunar Helium-3 mining operation with **n** truc
 
 ## Quick Start
 
-The project uses only the Python standard library (3.10+, developed on 3.12). There is nothing to install.
+The project uses only the Python standard library (3.10+, developed on 3.12). There is nothing to install and no virtual environment is needed. On Windows, use `py` or `python` in place of `python3`.
 
 ```bash
 python3 main.py                # 10 trucks, 3 stations, 72 hours
