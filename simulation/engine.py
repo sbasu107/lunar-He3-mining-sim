@@ -92,6 +92,8 @@ class SimulationEngine:
         while self.event_queue:
             event = heapq.heappop(self.event_queue)
             if event.time > end_time:
+                # Push the event back so _credit_in_progress_activities can
+                # see the full remaining queue size in the debug log.
                 heapq.heappush(self.event_queue, event)
                 break
             self.clock = event.time
@@ -139,6 +141,8 @@ class SimulationEngine:
     def _credit_elapsed(self, truck: MiningTruck) -> float:
         """Add time since the truck's state began to that state's total."""
         elapsed = self.clock - truck._state_start
+        # Look up which time-total attribute corresponds to the current state
+        # and increment it, avoiding a separate if/elif for each TruckState.
         total = _STATE_TOTALS[truck._state]
         setattr(truck, total, getattr(truck, total) + elapsed)
         truck._state_start = self.clock
@@ -202,8 +206,12 @@ class SimulationEngine:
 
         # Pick station with the shortest wait
         best_station = min(self.stations, key=lambda s: s.available_at)
+        # max() handles both cases: station free now (available_at <= clock)
+        # means unloading starts immediately; station busy means the truck waits.
         unload_start = max(self.clock, best_station.available_at)
         unload_duration = self.rng.randint(MIN_UNLOAD_MINUTES, MAX_UNLOAD_MINUTES)
+        # Advance the station's availability by this truck's unload duration so
+        # subsequent arrivals can calculate their wait without an explicit queue.
         best_station.available_at = unload_start + unload_duration
         truck._station_id = best_station.id
         logger.debug(
@@ -236,6 +244,10 @@ class SimulationEngine:
         assert event.station_id is not None
         station = self.stations[event.station_id]
 
+        # _transition() returns the minutes just spent in the ending state
+        # (UNLOADING), which is exactly the time this station was busy for
+        # this truck — credited here rather than at START_UNLOAD so we have
+        # the precise elapsed duration rather than re-deriving it.
         unload_time = self._transition(truck, TruckState.TRAVELING)
         truck.loads_delivered += 1
         truck._station_id = None

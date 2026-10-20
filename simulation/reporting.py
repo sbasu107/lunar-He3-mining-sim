@@ -132,6 +132,8 @@ class Reporter:
 
         for station in self.engine.stations:
             busy_h = station.time_busy / HOURS_TO_MINUTES
+            # Clamp to zero: a station credited for an in-progress unload at
+            # end-of-simulation can have time_busy marginally exceed duration_mins.
             idle_h = max(0.0, (duration_mins - station.time_busy) / HOURS_TO_MINUTES)
             util = self.station_utilization(station.id)
 
@@ -156,6 +158,8 @@ class Reporter:
             path: Destination file path (e.g. 'results/summary_report.md').
         """
         directory = os.path.dirname(path)
+        # os.path.dirname returns "" for a bare filename (e.g. "report.md");
+        # makedirs("") would raise FileNotFoundError, so we skip it in that case.
         if directory:
             os.makedirs(directory, exist_ok=True)
 
