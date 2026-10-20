@@ -1,3 +1,4 @@
+<div align="center">
 <table>
 <tr>
 <td><h1>Lunar Helium-3 Mining Simulation</h1></td>
@@ -6,10 +7,15 @@
 </td>
 </tr>
 </table>
+</div>
 
 A discrete-event simulation of a lunar Helium-3 mining operation with **n** trucks and **m** unload stations, reporting performance and efficiency statistics for each one.
 
+<div align="center">
+
 ![Mining Animation](assets/mining_sim_animation.gif)
+
+</div>
 
 <p align="center"><sub><i>Animation courtesy of Claude Sonnet 5.5. A simplified view of the actual problem.</i></sub></p>
 
@@ -18,11 +24,14 @@ A discrete-event simulation of a lunar Helium-3 mining operation with **n** truc
 The project uses only the Python standard library (3.10+, developed on 3.12). There is nothing to install and no virtual environment is needed. On Windows, use `py` or `python` in place of `python3`.
 
 ```bash
-python3 main.py                # 10 trucks, 3 stations, 72 hours
-python3 main.py 20 5           # 20 trucks, 5 stations
+python3 main.py                          # 10 trucks, 3 stations, 72 hours
+python3 main.py 20 5                     # 20 trucks, 5 stations
+python3 main.py 10 3 --hours 24          # run for 24 simulated hours instead of 72
 python3 main.py 10 3 --seed 42 --output results/summary_report.md
-python3 main.py --log-level debug    # trace every event on stderr
+python3 main.py --log-level debug        # trace every event on stderr
 ```
+
+<div align="center">
 
 | Argument | Description | Default |
 |---|---|---|
@@ -31,7 +40,9 @@ python3 main.py --log-level debug    # trace every event on stderr
 | `--hours H` | Simulated duration in hours | `72` |
 | `--seed S` | Random seed for reproducible runs | random |
 | `--output PATH` | Also save the Markdown report to `PATH` | not saved |
-| `--log-level LEVEL` | `debug`, `info`, `warning`, or `error` | `warning` |
+| `--log-level LEVEL` | `debug` or `info` | `warning` |
+
+</div>
 
 The report prints to stdout as Markdown. Status messages and log output go to stderr, so `python3 main.py > report.md` captures only the report. At `info`, the log shows each run's configuration and a summary; at `debug`, it also traces every event and station assignment.
 
@@ -81,4 +92,4 @@ python3 -m unittest discover -s tests -v
 
 The engine draws every random number from its own `random.Random(seed)`, so the same `--seed` always produces the same report.
 
-Each stage of the project was developed on its own branch and merged through a pull request with CI.
+Each major stage of the project was developed on its own branch and merged through a pull request with CI.

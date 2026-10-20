@@ -61,7 +61,7 @@ class TestMarkdown(unittest.TestCase):
         self.assertIn("**Mining Trucks (n):** 2", self.markdown)
         self.assertIn("**Unload Stations (m):** 1", self.markdown)
         self.assertIn("**Simulation Duration:** 10 hours (600 minutes)", self.markdown)
-        self.assertIn("None (Non-deterministic)", self.markdown)
+        self.assertIn("auto-generated", self.markdown)
 
     def test_summary_lists_totals(self):
         self.assertIn("**Total Loads Delivered:** 4", self.markdown)

@@ -44,7 +44,14 @@ class SimulationEngine:
     def __init__(self, config: SimConfig) -> None:
         self.config = config
         self.clock: float = 0.0
-        self.rng = random.Random(config.random_seed)
+        # If no seed was supplied, generate one from OS entropy so the run is
+        # still fully reproducible if the user wants to repeat it.
+        self.seed: int = (
+            config.random_seed
+            if config.random_seed is not None
+            else random.randrange(2**32)
+        )
+        self.rng = random.Random(self.seed)
         self.event_queue: list[Event] = []
         self._has_run = False
 
@@ -118,6 +125,7 @@ class SimulationEngine:
                 self.rng.randint(MIN_MINING_HOURS, MAX_MINING_HOURS)
                 * HOURS_TO_MINUTES
             )
+            logger.debug("Truck %d arrived at mine: will mine for %d min", truck.id, duration)
             self._schedule(Event(
                 time=duration,
                 type=EventType.MINING_COMPLETE,
@@ -250,6 +258,7 @@ class SimulationEngine:
             self.rng.randint(MIN_MINING_HOURS, MAX_MINING_HOURS)
             * HOURS_TO_MINUTES
         )
+        logger.debug("Truck %d arrived at mine: will mine for %d min", truck.id, duration)
         self._schedule(Event(
             time=self.clock + duration,
             type=EventType.MINING_COMPLETE,

@@ -93,7 +93,8 @@ class Reporter:
             f"- **Simulation Duration:** {duration_hrs} hours ({duration_mins:.0f} minutes)",
             f"- **Mining Trucks (n):** {self.config.num_trucks}",
             f"- **Unload Stations (m):** {self.config.num_stations}",
-            f"- **Random Seed:** {self.config.random_seed if self.config.random_seed is not None else 'None (Non-deterministic)'}",  # noqa: E501
+            f"- **Random Seed:** {self.engine.seed}"
+            + ("" if self.config.random_seed is not None else " *(auto-generated — use `--seed` to reproduce)*"),  # noqa: E501
             f"- **Total Loads Delivered:** {self.total_loads_delivered}",
             f"- **System Throughput:** {self.system_throughput_loads_per_hour:.2f} loads/hr",
             f"- **Average Truck Utilization:** {self.average_truck_utilization:.2f}%",
