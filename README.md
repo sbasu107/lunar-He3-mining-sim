@@ -69,16 +69,33 @@ Because every `available_at` is exact, the smallest one is the true shortest wai
 ## Architecture
 
 ```mermaid
-flowchart LR
-    CLI["main.py<br/>parse n, m, options"] --> Config["SimConfig<br/>frozen parameters"]
-    CLI --> Engine["SimulationEngine<br/>clock + event queue"]
-    Engine --> Trucks["MiningTruck × n"]
-    Engine --> Stations["UnloadStation × m"]
-    CLI --> Reporter["Reporter<br/>statistics + Markdown"]
-    Reporter -. reads .-> Engine
+flowchart TD
+    CLI["main.py<br/>parse n, m, options"] --> Config["mining.SimConfig<br/>frozen parameters"]
+    CLI --> Engine["sim_engine.SimulationEngine<br/>clock + priority queue"]
+    CLI --> Scenario["mining.MiningSimulation<br/>domain coordinator"]
+    CLI --> Reporter["mining.Reporter<br/>statistics + Markdown"]
+
+    subgraph "Core Simulation Kernel (sim_engine)"
+        Engine --> PQueue["Event Priority Queue (heapq)"]
+        Engine --> Clock["Virtual Clock (float, minutes)"]
+        Engine --> Seq["Monotonic Counter (int)"]
+    end
+
+    subgraph "Mining Domain (mining)"
+        Scenario --> Trucks["MiningTruck × n"]
+        Scenario --> Stations["UnloadStation × m"]
+        Scenario --> RNG["Domain RNG (random.Random)"]
+        Reporter -. reads .-> Trucks
+        Reporter -. reads .-> Stations
+    end
 ```
 
-The engine is the only class that changes state. Trucks and stations are plain dataclasses that hold running totals, and `Reporter` reads a finished engine without changing it, so formatting never leaks into simulation logic. The [`simulation` README](simulation/README.md) has the full class diagram, the truck lifecycle, and a walkthrough of each event handler.
+The project is split into two isolated packages:
+- **[`sim_engine/`](sim_engine/README.md)** — A reusable, domain-agnostic discrete-event engine (~60 lines). Manages the virtual clock, priority queue, and event dispatch with zero knowledge of mining.
+- **[`mining/`](mining/README.md)** — The lunar He-3 mining domain: trucks, stations, state machines, station selection heuristics, and reporting.
+- **[`simulation/`](simulation/README.md)** — A backward-compatibility facade re-exporting everything under the original import paths.
+
+See each package's README for details.
 
 ## Testing and Reproducibility
 
@@ -86,7 +103,7 @@ The engine is the only class that changes state. Trucks and stations are plain d
 python3 -m unittest discover -s tests -v
 ```
 
-91 tests run on GitHub Actions for every push and pull request to `main`, using only `unittest`. Most engine tests replace the random generator with a stub that returns fixed durations, so results can be checked against hand calculations. Others check rules that must hold for any seed, such as "every truck's time adds up to the full duration". See the [tests README](tests/README.md) for the full strategy.
+104 tests run on GitHub Actions for every push and pull request to `main`, using only `unittest`. Most engine tests replace the random generator with a stub that returns fixed durations, so results can be checked against hand calculations. Others check rules that must hold for any seed, such as "every truck's time adds up to the full duration". See the [tests README](tests/README.md) for the full strategy.
 
 **Coverage:** CI runs the suite under [`coverage.py`](https://coverage.readthedocs.io/) and posts a per-file coverage table on each run's summary page in the Actions tab. It's a CI-only tool: you don't need it to run the tests or the simulation locally. The [tests README](tests/README.md#coverage) shows how to check coverage yourself if you want to.
 

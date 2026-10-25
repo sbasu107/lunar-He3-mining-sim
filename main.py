@@ -15,7 +15,8 @@ import logging
 import sys
 import time
 
-from simulation import Reporter, SimConfig, SimulationEngine
+from mining import MiningSimulation, Reporter, SimConfig
+from sim_engine import SimulationEngine
 
 DEFAULT_TRUCKS = 10
 DEFAULT_STATIONS = 3
@@ -91,12 +92,36 @@ def main(argv: list[str] | None = None) -> int:
         random_seed=args.seed,
     )
 
+    sim_logger = logging.getLogger("simulation.engine")
+    sim_logger.info(
+        "Starting simulation: %d trucks, %d stations, %d h (seed=%s)",
+        config.num_trucks,
+        config.num_stations,
+        config.duration_hours,
+        config.random_seed,
+    )
+
     start = time.perf_counter()
-    engine = SimulationEngine(config)
-    engine.run()
+    engine = SimulationEngine()
+    scenario = MiningSimulation(engine, config, logger=sim_logger)
+    scenario.setup()
+    engine.run(until=config.duration_minutes)
+    scenario.finalize(until=config.duration_minutes)
     elapsed = time.perf_counter() - start
 
-    reporter = Reporter(engine)
+    sim_logger.info(
+        "Simulation finished at t=%.0f min: %d events processed, %d loads delivered",
+        engine.clock,
+        engine.events_processed,
+        sum(t.loads_delivered for t in scenario.trucks),
+    )
+
+    reporter = Reporter(
+        trucks=scenario.trucks,
+        stations=scenario.stations,
+        config=config,
+        seed=scenario.seed,
+    )
     reporter.print_report()
 
     if args.output:
