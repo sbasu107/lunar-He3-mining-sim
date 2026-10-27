@@ -1,4 +1,4 @@
-"""Lunar Helium-3 Mining Simulation package."""
+"""Lunar Helium-3 Mining Simulation package (backward-compatibility facade)."""
 
 import logging
 

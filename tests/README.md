@@ -1,6 +1,6 @@
 # Tests
 
-91 unit tests built on the standard library's `unittest`. There is nothing to install, and the full suite runs in under a second.
+104 unit tests built on the standard library's `unittest`. There is nothing to install, and the full suite runs in about a second.
 
 ```bash
 python3 -m unittest discover -s tests -v                 # everything
@@ -18,7 +18,7 @@ CI runs the tests under [`coverage.py`](https://coverage.readthedocs.io/) and ad
 
 ```bash
 python3 -m pip install coverage
-python3 -m coverage run --source=simulation,main -m unittest discover -s tests
+python3 -m coverage run --source=simulation,sim_engine,mining,main -m unittest discover -s tests
 python3 -m coverage report -m
 ```
 
@@ -33,7 +33,9 @@ A simulation is hard to check by eye, because almost any output looks plausible.
 
 | File | Tests | Covers |
 |---|---|---|
-| [`test_engine.py`](test_engine.py) | 44 | Hand-calculated scenarios, queueing rules, end-of-run accounting, invariants, edge cases, reproducibility, logging |
+| [`test_sim_engine.py`](test_sim_engine.py) | 9 | Core engine: event ordering, clock advancement, FIFO tie-breaking, event cancellation, past-time guard, run-once semantics |
+| [`test_mining.py`](test_mining.py) | 4 | Mining domain: full truck cycle, shortest-wait queueing, time invariants, polymorphic reporter |
+| [`test_engine.py`](test_engine.py) | 44 | Backward-compat facade: hand-calculated scenarios, queueing rules, end-of-run accounting, invariants, edge cases, reproducibility, logging |
 | [`test_cli.py`](test_cli.py) | 18 | Argument parsing, rejecting bad input, stdout vs. stderr, `--output`, `--log-level` |
 | [`test_reporting.py`](test_reporting.py) | 15 | Metric math against hand-set numbers, exact Markdown rows, saving files |
 | [`test_models.py`](test_models.py) | 14 | `SimConfig` defaults, validation, and immutability; `Event` ordering on a heap |
